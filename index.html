@@ -1,12 +1,10 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>USDT MiniSwap — BNB & ETH only</title>
-  <!-- Tailwind (CDN for quick start) -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Ethers v6 (CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.1/dist/ethers.min.js"></script>
   <style>
     body { background: radial-gradient(1200px 600px at 10% 10%, #f7fafc 0, #eef2f7 50%, #e9edf3 100%); }
@@ -14,7 +12,6 @@
     input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
   </style>
-  <!-- WalletConnect v2 UMD (for QR/modal connect) -->
   <script src="https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.12.1/dist/index.umd.min.js"></script>
 </head>
 <body class="min-h-screen p-4 text-gray-900">
@@ -30,7 +27,6 @@
       </div>
     </header>
 
-    <!-- Connect Modal -->
     <div id="connectModal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div class="w-[92%] max-w-sm rounded-2xl border bg-white p-4 space-y-3">
         <div class="text-lg font-semibold">Connect Wallet</div>
@@ -93,9 +89,427 @@
   </div>
 
   <script>
-    // ===== Constants =====
-    // ⚠️ Fill this with your WalletConnect Cloud Project ID (free): https://cloud.walletconnect.com
-    const WC_PROJECT_ID = "4bfb3a02f02aee6baccfb622ffa02d0c";
+    // ===== Constants & Configs =====
+    const WC_PROJECT_ID = "4bfb3a02f02aee6baccfb622ffa02d0c"; // Replace with your Project ID from WalletConnect Cloud
+    
+    // ABI for IERC20 (for approve and allowance checks)
+    const IERC20_ABI = [
+      "function allowance(address owner, address spender) view returns (uint256)",
+      "function approve(address spender, uint256 amount) returns (bool)",
+      "function balanceOf(address owner) view returns (uint256)",
+      "function symbol() view returns (string)",
+      "function decimals() view returns (uint8)"
+    ];
+    
+    // ABI for Uniswap/PancakeSwap V2 Router (for swaps and price quotes)
+    const ROUTER_ABI = [
+      "function getAmountsOut(uint256 amountIn, address[] memory path) view returns (uint256[] memory)",
+      "function swapExactTokensForETHSupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMin, address[] path, address to, uint256 deadline)",
+      "function swapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline)"
+    ];
+    
+    // Smart contract addresses
+    const CHAINS = {
+      56: { // BSC Mainnet
+        rpc: "https://bsc-dataseed1.binance.org",
+        chainId: 56,
+        name: "BSC",
+        nativeSymbol: "BNB",
+        routerAddress: "0x10ED43C718764fC606fF7a7c560BfC26eB006883", // PancakeSwap V2 Router
+        usdtAddress: "0x55d398326f99059fF775485246999027B3197955",
+        blockExplorer: "https://bscscan.com"
+      },
+      1: { // Ethereum Mainnet
+        rpc: "https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161", // Example Infura URL
+        chainId: 1,
+        name: "Ethereum",
+        nativeSymbol: "ETH",
+        routerAddress: "0x7a250d5630B4cF539739dF2C5d064e104d4d84d2", // Uniswap V2 Router
+        usdtAddress: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+        blockExplorer: "https://etherscan.io"
+      }
+    };
+    
+    // Global state variables
+    let provider;
+    let signer;
+    let currentChainId = 56;
+    let isU2NMode = true; // USDT to Native (BNB/ETH)
+    
+    // UI elements
+    const connectBtn = document.getElementById("connectBtn");
+    const connectModal = document.getElementById("connectModal");
+    const connectInjectedBtn = document.getElementById("connectInjected");
+    const connectWCBtn = document.getElementById("connectWC");
+    const connectCloseBtn = document.getElementById("connectClose");
+    const addressTag = document.getElementById("addressTag");
+    const bscModeBtn = document.getElementById("bscMode");
+    const ethModeBtn = document.getElementById("ethMode");
+    const routerTag = document.getElementById("routerTag");
+    const nativeSym1 = document.getElementById("nativeSym1");
+    const nativeSym2 = document.getElementById("nativeSym2");
+    const btnU2N = document.getElementById("btnU2N");
+    const btnN2U = document.getElementById("btnN2U");
+    const inLabel = document.getElementById("inLabel");
+    const outLabel = document.getElementById("outLabel");
+    const amountInInput = document.getElementById("amountIn");
+    const amountOutBox = document.getElementById("amountOutBox");
+    const balanceLine = document.getElementById("balanceLine");
+    const approveBtn = document.getElementById("approveBtn");
+    const swapBtn = document.getElementById("swapBtn");
+    const txStatus = document.getElementById("txStatus");
+    const spenderTag = document.getElementById("spenderTag");
+    
+    // Helper function to format address for display
+    const formatAddress = (address) => `${address.slice(0, 6)}...${address.slice(-4)}`;
+    
+    // Helper function to update the UI based on connection status
+    const updateUI = async () => {
+      const isConnected = !!signer;
+      if (isConnected) {
+        const address = await signer.getAddress();
+        addressTag.textContent = formatAddress(address);
+        addressTag.classList.remove("hidden");
+        connectBtn.textContent = "Disconnect";
+      } else {
+        addressTag.classList.add("hidden");
+        connectBtn.textContent = "Connect Wallet";
+      }
+      
+      routerTag.textContent = CHAINS[currentChainId].routerAddress;
+      spenderTag.textContent = CHAINS[currentChainId].routerAddress;
+      nativeSym1.textContent = CHAINS[currentChainId].nativeSymbol;
+      nativeSym2.textContent = CHAINS[currentChainId].nativeSymbol;
+      
+      const isU2N = isU2NMode;
+      btnU2N.classList.toggle("bg-gray-900", isU2N);
+      btnU2N.classList.toggle("text-white", isU2N);
+      btnU2N.classList.toggle("hover:bg-gray-50", !isU2N);
+      
+      btnN2U.classList.toggle("bg-gray-900", !isU2N);
+      btnN2U.classList.toggle("text-white", !isU2N);
+      btnN2U.classList.toggle("hover:bg-gray-50", isU2N);
+      
+      inLabel.textContent = isU2N ? "USDT" : CHAINS[currentChainId].nativeSymbol;
+      outLabel.textContent = isU2N ? CHAINS[currentChainId].nativeSymbol : "USDT";
+      
+      if (isConnected) {
+        await updateBalances();
+        await updateApprovalStatus();
+        await updatePriceQuote();
+      } else {
+        balanceLine.textContent = "Balance: 0";
+        amountOutBox.textContent = "0.0";
+        approveBtn.classList.add("hidden");
+      }
+      
+      swapBtn.disabled = !isConnected;
+      
+      bscModeBtn.classList.toggle("bg-gray-900", currentChainId === 56);
+      bscModeBtn.classList.toggle("text-white", currentChainId === 56);
+      bscModeBtn.classList.toggle("hover:bg-gray-50", currentChainId !== 56);
+      
+      ethModeBtn.classList.toggle("bg-gray-900", currentChainId === 1);
+      ethModeBtn.classList.toggle("text-white", currentChainId === 1);
+      ethModeBtn.classList.toggle("hover:bg-gray-50", currentChainId !== 1);
+    };
+    
+    // Function to handle connection using Injected (MetaMask, etc.)
+    const connectInjected = async () => {
+      if (typeof window.ethereum === 'undefined') {
+        alert("Please install a browser wallet like MetaMask.");
+        return;
+      }
+      try {
+        const _provider = new ethers.BrowserProvider(window.ethereum);
+        const _signer = await _provider.getSigner();
+        
+        provider = _provider;
+        signer = _signer;
+        
+        const network = await provider.getNetwork();
+        currentChainId = Number(network.chainId);
+        
+        connectModal.classList.add("hidden");
+        updateUI();
+        
+        // Listen for account or network changes
+        window.ethereum.on('accountsChanged', ([newAddress]) => {
+          if (newAddress) signer = provider.getSigner();
+          else disconnect();
+          updateUI();
+        });
+        window.ethereum.on('chainChanged', (newChainId) => {
+          currentChainId = Number(newChainId);
+          updateUI();
+        });
+        
+      } catch (error) {
+        console.error("Connection failed:", error);
+        alert("Failed to connect wallet.");
+      }
+    };
+    
+    // Function to handle connection using WalletConnect
+    const connectWalletConnect = async () => {
+      try {
+        const wcProvider = await WalletConnectProvider.init({
+          projectId: WC_PROJECT_ID,
+          chains: [56, 1], // Supported chains
+          showQrModal: true
+        });
+        
+        await wcProvider.connect();
+        
+        const _provider = new ethers.BrowserProvider(wcProvider);
+        const _signer = await _provider.getSigner();
+        
+        provider = _provider;
+        signer = _signer;
+        
+        const network = await provider.getNetwork();
+        currentChainId = Number(network.chainId);
+        
+        connectModal.classList.add("hidden");
+        updateUI();
+        
+        // Listen for events
+        wcProvider.on('accountsChanged', ([newAddress]) => {
+          if (newAddress) signer = provider.getSigner();
+          else disconnect();
+          updateUI();
+        });
+        wcProvider.on('chainChanged', (newChainId) => {
+          currentChainId = Number(newChainId);
+          updateUI();
+        });
+        wcProvider.on('disconnect', () => {
+          disconnect();
+        });
+        
+      } catch (error) {
+        console.error("WC connection failed:", error);
+        alert("Failed to connect WalletConnect.");
+      }
+    };
+    
+    // Disconnect wallet
+    const disconnect = () => {
+      signer = null;
+      provider = null;
+      updateUI();
+      txStatus.textContent = "";
+    };
+    
+    // Update token balances
+    const updateBalances = async () => {
+      if (!signer) return;
+      try {
+        const chain = CHAINS[currentChainId];
+        const address = await signer.getAddress();
+        
+        let balance, decimals, symbol;
+        if (isU2NMode) {
+          const usdtContract = new ethers.Contract(chain.usdtAddress, IERC20_ABI, provider);
+          balance = await usdtContract.balanceOf(address);
+          decimals = await usdtContract.decimals();
+          symbol = await usdtContract.symbol();
+        } else {
+          balance = await provider.getBalance(address);
+          decimals = 18; // Native token decimals
+          symbol = chain.nativeSymbol;
+        }
+        
+        const formattedBalance = ethers.formatUnits(balance, decimals);
+        balanceLine.textContent = `Balance: ${Number(formattedBalance).toFixed(4)} ${symbol}`;
+      } catch (error) {
+        console.error("Failed to fetch balance:", error);
+        balanceLine.textContent = "Balance: N/A";
+      }
+    };
+    
+    // Check and update approval status for USDT
+    const updateApprovalStatus = async () => {
+      if (!signer || !isU2NMode) {
+        approveBtn.classList.add("hidden");
+        return;
+      }
+      
+      try {
+        const chain = CHAINS[currentChainId];
+        const address = await signer.getAddress();
+        const usdtContract = new ethers.Contract(chain.usdtAddress, IERC20_ABI, provider);
+        const routerAddress = chain.routerAddress;
+        
+        const allowance = await usdtContract.allowance(address, routerAddress);
+        const amountIn = ethers.parseUnits(amountInInput.value || "0", 6); // USDT has 6 decimals
+        
+        if (allowance >= amountIn) {
+          approveBtn.classList.add("hidden");
+          swapBtn.disabled = false;
+        } else {
+          approveBtn.classList.remove("hidden");
+          swapBtn.disabled = true;
+        }
+      } catch (error) {
+        console.error("Failed to check allowance:", error);
+        approveBtn.classList.add("hidden");
+        swapBtn.disabled = true;
+      }
+    };
+    
+    // Get price quote from the router
+    const updatePriceQuote = async () => {
+      if (!provider || amountInInput.value <= 0) {
+        amountOutBox.textContent = "0.0";
+        return;
+      }
+      
+      try {
+        const amountIn = ethers.parseUnits(amountInInput.value, isU2NMode ? 6 : 18);
+        const chain = CHAINS[currentChainId];
+        const routerContract = new ethers.Contract(chain.routerAddress, ROUTER_ABI, provider);
+        
+        const path = isU2NMode
+          ? [chain.usdtAddress, chain.nativeAddress] // USDT -> Native
+          : [chain.nativeAddress, chain.usdtAddress]; // Native -> USDT
+        
+        const amountsOut = await routerContract.getAmountsOut(amountIn, path);
+        const amountOut = amountsOut[1];
+        
+        const decimalsOut = isU2NMode ? 18 : 6;
+        amountOutBox.textContent = ethers.formatUnits(amountOut, decimalsOut);
+      } catch (error) {
+        console.error("Failed to get price quote:", error);
+        amountOutBox.textContent = "Error";
+      }
+    };
+    
+    // Handle approval transaction
+    const handleApprove = async () => {
+      if (!signer) return;
+      txStatus.textContent = "Sending approval transaction...";
+      try {
+        const chain = CHAINS[currentChainId];
+        const usdtContract = new ethers.Contract(chain.usdtAddress, IERC20_ABI, signer);
+        
+        const maxUint256 = ethers.MaxUint256;
+        const tx = await usdtContract.approve(chain.routerAddress, maxUint256);
+        txStatus.textContent = `Approval transaction sent: ${tx.hash}`;
+        
+        await tx.wait();
+        txStatus.textContent = `Approval successful! Tx: ${tx.hash}`;
+        
+        await updateApprovalStatus(); // Re-check after tx confirmation
+      } catch (error) {
+        console.error("Approval failed:", error);
+        txStatus.textContent = `Approval failed: ${error.message}`;
+      }
+    };
+    
+    // Handle swap transaction
+    const handleSwap = async () => {
+      if (!signer) return;
+      
+      const amountIn = amountInInput.value;
+      if (amountIn <= 0) {
+        txStatus.textContent = "Please enter a valid amount.";
+        return;
+      }
+      
+      txStatus.textContent = "Getting quote and preparing swap...";
+      try {
+        const chain = CHAINS[currentChainId];
+        const routerContract = new ethers.Contract(chain.routerAddress, ROUTER_ABI, signer);
+        const deadline = Math.floor(Date.now() / 1000) + (Number(document.getElementById("deadline").value) * 60);
+        const slippage = Number(document.getElementById("slippage").value);
+        
+        const path = isU2NMode
+          ? [chain.usdtAddress, chain.nativeAddress]
+          : [chain.nativeAddress, chain.usdtAddress];
+        
+        const amountsOut = await routerContract.getAmountsOut(ethers.parseUnits(amountIn, isU2NMode ? 6 : 18), path);
+        const amountOutMin = amountsOut[1];
+        
+        const amountOutMinWithSlippage = amountOutMin - (amountOutMin * BigInt(Math.floor(slippage * 100)) / BigInt(10000));
+        
+        const toAddress = await signer.getAddress();
+        
+        let tx;
+        if (isU2NMode) {
+          tx = await routerContract.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            ethers.parseUnits(amountIn, 6),
+            amountOutMinWithSlippage,
+            path,
+            toAddress,
+            deadline
+          );
+        } else {
+          tx = await routerContract.swapExactETHForTokensSupportingFeeOnTransferTokens(
+            amountOutMinWithSlippage,
+            path,
+            toAddress,
+            deadline,
+            { value: ethers.parseEther(amountIn) }
+          );
+        }
+        
+        txStatus.textContent = `Swap transaction sent: ${tx.hash}`;
+        await tx.wait();
+        txStatus.textContent = `Swap successful! Tx: ${tx.hash}`;
+        
+        updateUI(); // Refresh balances and status
+        
+      } catch (error) {
+        console.error("Swap failed:", error);
+        txStatus.textContent = `Swap failed: ${error.message}`;
+      }
+    };
+    
+    // Event Listeners
+    connectBtn.addEventListener("click", () => {
+      if (signer) {
+        disconnect();
+      } else {
+        connectModal.classList.remove("hidden");
+      }
+    });
+    
+    connectCloseBtn.addEventListener("click", () => connectModal.classList.add("hidden"));
+    connectInjectedBtn.addEventListener("click", connectInjected);
+    connectWCBtn.addEventListener("click", connectWalletConnect);
+    
+    bscModeBtn.addEventListener("click", () => {
+      currentChainId = 56;
+      updateUI();
+    });
+    
+    ethModeBtn.addEventListener("click", () => {
+      currentChainId = 1;
+      updateUI();
+    });
+    
+    btnU2N.addEventListener("click", () => {
+      isU2NMode = true;
+      updateUI();
+    });
+    
+    btnN2U.addEventListener("click", () => {
+      isU2NMode = false;
+      updateUI();
+    });
+    
+    amountInInput.addEventListener("input", () => {
+      updatePriceQuote();
+      updateApprovalStatus();
+    });
+    
+    approveBtn.addEventListener("click", handleApprove);
+    swapBtn.addEventListener("click", handleSwap);
+    
+    // Initial UI load
+    updateUI();
+    
   </script>
 </body>
 </html>
