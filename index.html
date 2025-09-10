@@ -89,6 +89,24 @@
       BSC:      { id: 56, hex: "0x38", name: "BSC",       native: "BNB", router: "0x10ED43C718714eb63d5aA57B78B54704E256024E", USDT: "0x55d398326f99059fF775485246999027B3197955", WNATIVE: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c", usdtDecimals: 18 },
     };
 
+    // Network params for wallet_addEthereumChain fallback (if chain not added)
+    const CHAIN_PARAMS = {
+      BSC: {
+        chainId: "0x38",
+        chainName: "BNB Smart Chain",
+        nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
+        rpcUrls: ["https://bsc-dataseed.binance.org", "https://bsc-dataseed1.defibit.io"],
+        blockExplorerUrls: ["https://bscscan.com"],
+      },
+      ETHEREUM: {
+        chainId: "0x1",
+        chainName: "Ethereum Mainnet",
+        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+        rpcUrls: ["https://rpc.ankr.com/eth"],
+        blockExplorerUrls: ["https://etherscan.io"],
+      },
+    };
+
     // Minimal ABIs
     const ERC20_ABI = [
       { "type": "function", "name": "decimals", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "uint8" }] },
@@ -153,7 +171,25 @@
     async function ensureChain() {
       if (!window.ethereum) return;
       try {
-        const currentHex = (await window.ethereum.request({ method: 'eth_chainId' }));
+        const currentHex = await window.ethereum.request({ method: 'eth_chainId' });
+        if (currentHex !== current.hex) {
+          try {
+            await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: current.hex }] });
+          } catch (e) {
+            // 4902: Unrecognized chain — add then switch
+            if (e && (e.code === 4902 || (e.data && e.data.originalError && e.data.originalError.code === 4902))) {
+              const params = current.id === 56 ? CHAIN_PARAMS.BSC : CHAIN_PARAMS.ETHEREUM;
+              await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [params] });
+              await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: current.hex }] });
+            } else {
+              throw e;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('ensureChain failed', e);
+      }
+    }));
         if (currentHex !== current.hex) {
           await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: current.hex }] });
         }
@@ -164,7 +200,28 @@
     }
 
     async function connect() {
-      if (!window.ethereum) { alert('No wallet found (EIP-1193).'); return; }
+      if (!window.ethereum) { alert('Wallet tapılmadı. Zəhmət olmasa MetaMask və ya uyğun wallet quraşdır.'); return; }
+      try {
+        provider = new ethers.BrowserProvider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        signer = await provider.getSigner();
+        userAddress = await signer.getAddress();
+        addressTag.textContent = short(userAddress);
+        addressTag.classList.remove('hidden');
+        connectBtn.textContent = 'Disconnect';
+        // react to account / chain changes
+        if (window.ethereum && !window.ethereum._miniSwapBound) {
+          window.ethereum._miniSwapBound = true;
+          window.ethereum.on('accountsChanged', () => { setTimeout(() => { connect(); }, 50); });
+          window.ethereum.on('chainChanged', () => { setTimeout(() => { setMode(current); }, 50); });
+        }
+        await ensureChain();
+        await refreshBalancesAndQuote();
+      } catch (e) {
+        console.warn('connect failed', e);
+        alert('Connect alınmadı: ' + (e && e.message ? e.message : e));
+      }
+    }
       provider = new ethers.BrowserProvider(window.ethereum);
       await provider.send("eth_requestAccounts", []);
       signer = await provider.getSigner();
@@ -277,7 +334,52 @@
     async function doSwap() {
       try {
         if (!signer) throw new Error('Connect wallet');
+        await ensureChain();
         const { router } = getContracts();
+        const amtIn = direction === 'USDT_TO_NATIVE'
+          ? ethers.parseUnits(amountIn.value || '0', current.usdtDecimals)
+          : ethers.parseUnits(amountIn.value || '0', 18);
+        if (amtIn === 0n) { txStatus('Məbləğ 0 ola bilməz'); return; }
+
+        // Quote → minOut
+        const path = direction === 'USDT_TO_NATIVE' ? [current.USDT, current.WNATIVE] : [current.WNATIVE, current.USDT];
+        const amounts = await router.getAmountsOut(amtIn, path);
+        const outRaw = amounts[1];
+        const slip = Math.max(0, parseFloat(slippageInput.value || '0'));
+        const minOut = outRaw - (outRaw * BigInt(Math.floor(slip * 100))) / 10000n;
+        const deadline = BigInt(nowSec() + (parseInt(deadlineInput.value || '20', 10) * 60));
+
+        txStatus('Göndərilir…');
+        let tx;
+        if (direction === 'NATIVE_TO_USDT') {
+          tx = await router.connect(signer).swapExactETHForTokens(
+            minOut,
+            path,
+            await signer.getAddress(),
+            deadline,
+            { value: amtIn }
+          );
+        } else {
+          // Ensure approvals
+          const need = await needsApproval();
+          if (need) { await doApprove(); }
+          tx = await router.connect(signer).swapExactTokensForETH(
+            amtIn,
+            minOut,
+            path,
+            await signer.getAddress(),
+            deadline
+          );
+        }
+        txStatus('Təsdiq gözlənilir…');
+        await tx.wait();
+        txStatus('Transaction confirmed ✅');
+        await refreshBalancesAndQuote();
+      } catch (e) {
+        console.warn(e);
+        txStatus('Swap failed: ' + (e && e.message ? e.message : e));
+      }
+    } = getContracts();
         const amtIn = direction === 'USDT_TO_NATIVE'
           ? ethers.parseUnits(amountIn.value || '0', current.usdtDecimals)
           : ethers.parseUnits(amountIn.value || '0', 18);
